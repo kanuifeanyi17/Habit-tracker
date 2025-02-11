@@ -1,0 +1,164 @@
+import 'dart:convert';
+import 'dart:math';
+
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+class ReportsScreen extends StatefulWidget {
+  const ReportsScreen({super.key});
+
+  @override
+  _ReportsScreenState createState() => _ReportsScreenState();
+}
+
+class _ReportsScreenState extends State<ReportsScreen> {
+  Map<String, List<int>> weeklyData = {};
+  List<String> selectedHabits = [];
+  List<String> completedHabits = [];
+  final List<String> daysOfWeek = [
+    'Mon',
+    'Tue',
+    'Wed',
+    'Thu',
+    'Fri',
+    'Sat',
+    'Sun'
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadWeeklyData();
+  }
+
+  Future<void> _loadWeeklyData() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+
+/*
+    selectedHabitsMap = Map<String, String>.from(
+        jsonDecode(prefs.getString('selectedHabitsMap') ?? '{}'));
+    completedHabitsMap = Map<String, String>.from(
+        jsonDecode(prefs.getString('completedHabitsMap') ?? '{}'));
+*/
+    // Get the selected habits and completed habits from the map
+    String? selectedHabitsMapString = prefs.getString('selectedHabitsMap');
+    String? completedHabitsMapString = prefs.getString('completedHabitsMap');
+    if (selectedHabitsMapString != null) {
+      Map<String, dynamic> selectedHabitsMap =
+          jsonDecode(selectedHabitsMapString);
+      selectedHabits = selectedHabitsMap.keys.toList();
+    } else {
+      selectedHabits = [];
+    }
+
+    if (completedHabitsMapString != null) {
+      Map<String, dynamic> completedHabitsMap =
+          jsonDecode(completedHabitsMapString);
+      completedHabits = completedHabitsMap.keys.toList();
+    } else {
+      completedHabits = [];
+    }
+
+
+
+
+    // If no habits are selected, reset weeklyData
+    if (selectedHabits.isEmpty) {
+      setState(() {
+        weeklyData = {};
+      });
+      return;
+    }
+
+    // Load the data from shared preferences or generate random mixed data if none exists
+    String? storedData = prefs.getString('weeklyData');
+/*    print("##########################\n");
+    print(storedData);
+    print("\n##########################");*/
+    if (storedData == null) {
+      Map<String, List<int>> mixedData = {
+        for (var habit in selectedHabits)
+          habit: List.generate(
+              7, (_) => 0), // Generate 0 for not done
+      };
+      await prefs.setString('weeklyData', jsonEncode(mixedData));
+      storedData = jsonEncode(mixedData);
+    }
+
+    // Decode and set weekly data
+    setState(() {
+      Map<String, dynamic> decodedData = jsonDecode(storedData!);
+      weeklyData = decodedData.map((key, value) => MapEntry(
+            key,
+            List<int>.from(value),
+          ));
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.blue.shade700,
+        title: const Text(
+          'Weekly Report',
+          style: TextStyle(
+              fontSize: 24, color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+      ),
+      body: weeklyData.isEmpty
+          ? const Center(
+              child: Text(
+                'No data available. Please configure habits first.',
+                style: TextStyle(fontSize: 16, color: Colors.grey),
+              ),
+            )
+          : SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SingleChildScrollView(
+                child: DataTable(
+                  columns: _buildColumns(),
+                  rows: _buildRows(),
+                ),
+              ),
+            ),
+    );
+  }
+
+  List<DataColumn> _buildColumns() {
+    return [
+      const DataColumn(
+        label: Text('Habit', style: TextStyle(fontWeight: FontWeight.bold)),
+      ),
+      ...daysOfWeek.map((day) => DataColumn(
+            label: Text(
+              day,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          )),
+    ];
+  }
+
+  List<DataRow> _buildRows() {
+    return selectedHabits.map((habit) {
+      return DataRow(
+        cells: [
+          DataCell(Text(habit)),
+          ...List.generate(7, (index) {
+            bool isCompleted = weeklyData[habit]?[index] == 1;
+/*            print("##########################\n");
+            print(habit);
+            print(isCompleted);
+            print("\n##########################");*/
+            return DataCell(
+              Icon(
+                isCompleted ? Icons.check_circle : Icons.cancel,
+                color: isCompleted ? Colors.green : Colors.red,
+              ),
+            );
+          }),
+        ],
+      );
+    }).toList();
+  }
+}
